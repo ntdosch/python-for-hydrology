@@ -1,0 +1,435 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "b4ae2aec",
+   "metadata": {},
+   "source": [
+    "# 09: Geopandas exercise solutions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "adapted-heath",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "import numpy as np\n",
+    "import pandas as pd\n",
+    "import geopandas as gp\n",
+    "from shapely.geometry import Point, Polygon\n",
+    "from pathlib import Path\n",
+    "import matplotlib.pyplot as plt\n",
+    "from matplotlib.backends.backend_pdf import PdfPages"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "928f22eb",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "datapath = Path('../data/geopandas/')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "54ed3ea9",
+   "metadata": {},
+   "source": [
+    "## TEST YOUR SKILLS #0\n",
+    "- make a new geodataframe of the parks\n",
+    "- add a columns with centroids for each park\n",
+    "- plot an interactive window with the park centroids and the neighborhoods\n",
+    "- hints: \n",
+    "    - remember the shapely methods are available for each geometry object (e.g. `centroid()`) \n",
+    "    - you can loop over the column in a couple different ways\n",
+    "    - you can define which columns contains the geometry of a geodataframe\n",
+    "    - you will likely have to define the CRS"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "03b1b58e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "parks = gp.read_file(datapath / 'Madison_Parks.geojson')\n",
+    "hoods = gp.read_file(datapath / 'Neighborhood_Associations.geojson')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d3ad33ec",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# loopy solution\n",
+    "parks_cent = parks.copy()\n",
+    "centroids = []\n",
+    "for i in parks_cent.geometry.values:\n",
+    "    centroids.append(i.centroid)\n",
+    "parks_cent['centroid'] = centroids"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "599de3e5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# do it all at once with a list comprehension\n",
+    "parks_cent['centroid'] = [i.centroid for i in parks_cent.geometry]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "bbe8574f",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# set the geometry and CRS\n",
+    "parks_cent.set_geometry('centroid', inplace=True)\n",
+    "parks_cent.set_crs(parks.crs, inplace=True);"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "16fcbb94",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "m_hoods = hoods.explore()\n",
+    "parks_cent.explore(m=m_hoods)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "historic-charleston",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "markdown",
+   "id": "87c2939a",
+   "metadata": {},
+   "source": [
+    "## TEST YOUR SKILLS #1\n",
+    "Using the `bounds` geodataframe you just made, write a function to visualize predicate behaviors.\n",
+    "- your function should accept a left geodataframe, a right geodataframe, and a string for the predicate\n",
+    "- your function should plot:\n",
+    "    - the left geodataframe in (default) blue\n",
+    "    - the result of the spatial join operation in another color\n",
+    "    - the right geodataframe in another color with outline only\n",
+    "- then you should set the title of the plot to the string predicate value used\n",
+    "- the geodataframes to test with are `isthmus_parks` and `bounds`\n",
+    "- your function should `return` the joined geodataframe\n",
+    "\n",
+    "- a couple hints:\n",
+    "    - in the `plot` method are a couple args called `facecolor` and `edgecolor` that will help plot the rectangle\n",
+    "    - there are other predicates to try out \n",
+    "\n",
+    "- _advanced options_: if that was easy, you can try a couple other things like:\n",
+    "    - explore joins with points and lines in addition to just polygons\n",
+    "    - change around the `bounds` polygon dimensions \n",
+    "    - use `explore()` to make an interactive map"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "74576cf5",
+   "metadata": {},
+   "source": [
+    "### first have to bring over some things from the main lesson"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1b3e7437",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "parks.to_crs(3071, inplace=True)\n",
+    "hoods.to_crs(parks.crs, inplace=True)\n",
+    "isthmus = hoods.loc[hoods['NEIGHB_NAME'].str.contains('Marquette') | \n",
+    "                   hoods['NEIGHB_NAME'].str.contains('Tenney')]\n",
+    "from shapely.geometry import box\n",
+    "bbox = box(570600, 290000, 573100, 291700)\n",
+    "bounds = gp.GeoDataFrame(geometry=[bbox],crs=parks.crs)\n",
+    "isthmus_parks = gp.sjoin(left_df=parks, right_df=isthmus)\n",
+    "isthmus_parks.drop(columns=[ 'index_right','OBJECTID_right', 'NA_ID', 'STATUS', 'CLASSIFICA', 'Web',\n",
+    "       'ShapeSTArea', 'ShapeSTLength'], inplace=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "2c88f25c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def show_predicate(ldf,rdf,predicate):\n",
+    "    sj = gp.sjoin(ldf, rdf, predicate=predicate)\n",
+    "    ax = ldf.plot()\n",
+    "    sj.plot(ax=ax, color='black')\n",
+    "    rdf.plot(facecolor='none', edgecolor='orange', ax=ax)\n",
+    "    ax.set_title(predicate)\n",
+    "    return sj"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "bf1d1f6c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sj = show_predicate(isthmus_parks, bounds, 'intersects')\n",
+    "sj.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a9c46d03",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sj = show_predicate(bounds, isthmus_parks, 'overlaps')\n",
+    "sj.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "fb9476f2",
+   "metadata": {},
+   "source": [
+    "## TEST YOUR SKILLS _OPTIONAL_\n",
+    "We have an Excel file that contains a crosswalk between SPECIES number as provided and species name. Can we bring that into our dataset and evaluate some conclusions about tree species by neighborhood?\n",
+    "- start with the `trees_with_hoods` GeoDataFrame\n",
+    "- load up and join the data from datapath / 'Madison_Tree_Species_Lookup.xlsx'\n",
+    "- hint: check the dtypes before merging - if you are going to join on a column, the column must be the same dtype in both dataframes\n",
+    "- Make a multipage PDF with a page for each neighborhood showing a bar chart of the top ten tree species (by name) in each neighborhood\n",
+    "- Make a map (use explore, or save to SHP or geojson) showing the neighborhoods with a color-coded field showing the most common tree species for each neighborhood\n",
+    "\n",
+    "You will need a few pandas operations that we have only touched on a bit:  \n",
+    "\n",
+    "`groupby`, `count`, `merge`, `read_excel`, `sort_values`, `iloc`"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "f7586c06",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# read back in the trees and hoods data\n",
+    "trees = gp.read_file(datapath / 'Street_Trees.geojson', index_col=0)\n",
+    "trees.to_crs(hoods.crs, inplace=True)\n",
+    "trees_with_hoods = trees[['SPECIES','DIAMETER','geometry']].sjoin(hoods[['NEIGHB_NAME','geometry']])\n",
+    "trees_with_hoods.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d3f3da2b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# now read the excel file with tree species lookup - might need to fiddle with skiprows parameter\n",
+    "tree_species = pd.read_excel(datapath / 'Madison_Tree_Species_Lookup.xlsx', \n",
+    "                             skiprows = 6)\n",
+    "tree_species"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "97cbc192",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# check out the data types \n",
+    "tree_species.dtypes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5b67ef41",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "trees_with_hoods.dtypes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "70f9b0b6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# d'oh! Code in tree_species and SPECIES in trees_with_hoods are different types.\n",
+    "# To make them consistent, let's convert SPECIES in trees_with_hoods to int\n",
+    "trees_with_hoods.SPECIES = [int(i) for i in trees_with_hoods.SPECIES]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a89989b2",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "trees_with_hoods.dtypes"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "69fb939b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# now we can merge - check out the left_on, right_on args\n",
+    "trees_final = trees_with_hoods.merge(tree_species, left_on='SPECIES', right_on='Code')\n",
+    "trees_final"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "6b021718",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# now the multipage plots\n",
+    "with PdfPages(datapath / 'TreePlots.pdf') as outpdf:\n",
+    "    # first groupby neighborhoods \n",
+    "    for cn, cg in trees_final.groupby('NEIGHB_NAME'):\n",
+    "        #then, for each neighborhood, group by \"Description\" to get counts by name\n",
+    "        counts = cg.groupby('Description')['SPECIES'].count()\n",
+    "        # sort them in reverse value\n",
+    "        counts.sort_values(ascending=False, inplace=True)\n",
+    "        #make a bar chart of the top ten counts\n",
+    "        counts[:10].plot.bar()\n",
+    "        # set up a title\n",
+    "        plt.title(f'top 10 trees in {cn}')\n",
+    "        # when the x-axis labels are long they can get cut off. tight_layout can help\n",
+    "        plt.tight_layout()\n",
+    "        outpdf.savefig()\n",
+    "        plt.close('all')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "e851aac3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# we can do this in an extra-pythonic way as well, chaining operations together\n",
+    "# advantage is it's faster to run but can be harder to initially understand and debug\n",
+    "with PdfPages(datapath / 'TreePlots.pdf') as outpdf:\n",
+    "    # first groupby neighborhoods \n",
+    "    for cn, cg in trees_final.groupby('NEIGHB_NAME'):\n",
+    "        cg.groupby('Description')['SPECIES'].count().sort_values(ascending=False)[:10].plot.bar()\n",
+    "        # set up a title\n",
+    "        plt.title(f'top 10 trees in {cn}')\n",
+    "        # when the x-axis labels are long they can get cut off. tight_layout can help\n",
+    "        plt.tight_layout()\n",
+    "        outpdf.savefig()\n",
+    "        plt.close('all')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ee27c8c2",
+   "metadata": {},
+   "source": [
+    "### Now let's find the most common tree species in each neighborhood and make a map. There are some [\"sophisticated\" ways](https://stackoverflow.com/questions/52243060/get-row-value-of-maximum-count-after-applying-group-by-in-pandas) using lots of pandas intrinsic functionality that can work, but we can also do it in a few (hopefully) logical explicit steps. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "36c9b2ef",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# we can make a couple empty lists and just append the neighborhood name and the index of the \n",
+    "# maximum occurring tree species in each in a loop. Still some \"cleverness\"\n",
+    "hood = []\n",
+    "max_tree = []\n",
+    "for cn, cg in trees_final.groupby('NEIGHB_NAME'):\n",
+    "    hood.append(cn)\n",
+    "    max_tree.append(cg.groupby('Description').count().sort_values(by='SPECIES', ascending=False).iloc[0].name)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "6586df5e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# make a dataframe with these values\n",
+    "mts = pd.DataFrame(index=hood, data={'max_tree':max_tree})"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a9a6b6e9",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#now join this back into the GeoDataFrame of hoods\n",
+    "hoods.merge(mts, left_on='NEIGHB_NAME', right_index=True)[['NEIGHB_NAME','max_tree', 'geometry']].explore(column='max_tree')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "41d32fa6-cdf5-40e7-8249-0c8798e720f0",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.11"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
